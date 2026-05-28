@@ -1,5 +1,5 @@
 # queue_system
 
-A documentação principal foi movida para `docs/README.md`.
+A documentaï¿½ï¿½o principal foi movida para `docs/README.md`.
 
-Consulte `docs/README.md` para instruções completas de instalação, configuração de ambiente e execução no Windows, macOS, Linux e iOS.
+Consulte `docs/README.md` para instruï¿½ï¿½es completas de instalaï¿½ï¿½o, configuraï¿½ï¿½o de ambiente e execuï¿½ï¿½o no Windows, macOS, Linux e iOS.
