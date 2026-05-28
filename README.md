@@ -8,6 +8,24 @@ Sistema de gestão de filas em Python, implementado conforme um diagrama de clas
 python -m pip install -r requirements.txt
 ```
 
+### Adicionar novos requerimentos
+
+Se precisar de instalar dependências adicionais, use os comandos abaixo:
+
+```bash
+# instalar novas bibliotecas diretamente
+python -m pip install qrcode Pillow twilio
+
+# atualizar o ficheiro requirements.txt com todas as dependências atuais do ambiente
+python -m pip freeze > requirements.txt
+```
+
+Se preferir adicionar uma biblioteca específica no `requirements.txt`, edite o ficheiro manualmente e inclua a nova dependência, por exemplo:
+
+```text
+requests>=2.30.0
+```
+
 ## Execução HTTP
 
 ```bash
