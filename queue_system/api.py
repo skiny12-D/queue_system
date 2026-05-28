@@ -61,7 +61,7 @@ async def lifespan(app: FastAPI):
         
         # thread é daemon; nada a limpar explicitamente
 
-        
+
         pass
 
 app = FastAPI(
@@ -151,7 +151,13 @@ def home() -> str:
                 <label>Senha id: <input id="posicaoId" type="number" value="1"></label><br>
                 <button onclick="consultarPosicao()">Consultar</button>
                 <button onclick="verAlerta()">Ver alerta de proximidade</button>
+                <button onclick="carregarQr()">Ver QR code</button>
                 <pre id="posicaoResposta"></pre>
+                <div id="qrContainer" style="margin-top: 1rem; display:none;">
+                    <h3>QR code</h3>
+                    <img id="qrImage" alt="QR code" style="max-width:100%; border:1px solid #ccc; padding: 0.5rem; background:#fff;" />
+                    <p id="qrMensagem" style="color:#666; font-size:0.9rem;"></p>
+                </div>
             </section>
             <section class="box">
                 <h2>Cancelar senha</h2>
@@ -181,8 +187,16 @@ def home() -> str:
                         acesso_digital: document.getElementById('pessoaAcessoDigital').checked,
                     };
                     const res = await fetch('/fila/emitir', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                    document.getElementById('emitirResposta').textContent = JSON.stringify(await res.json(), null, 2);
+                    const result = await res.json();
+                document.getElementById('emitirResposta').textContent = JSON.stringify(result, null, 2);
+                if (result.qr_code_base64) {
+                    document.getElementById('qrContainer').style.display = 'block';
+                    document.getElementById('qrImage').src = `data:image/png;base64,${result.qr_code_base64}`;
+                    document.getElementById('qrMensagem').textContent = 'Digitalize este QR code com o telefone ou tablet para aceder à sua senha.';
+                } else {
+                    document.getElementById('qrContainer').style.display = 'none';
                 }
+            }
                 async function chamarProximo() {
                     const res = await fetch('/fila/chamar', { method: 'POST' });
                     document.getElementById('chamarResposta').textContent = await res.text();
@@ -209,6 +223,20 @@ def home() -> str:
                     const id = document.getElementById('posicaoId').value;
                     const res = await fetch(`/fila/alerta/${id}`);
                     document.getElementById('posicaoResposta').textContent = JSON.stringify(await res.json(), null, 2);
+                }
+                async function carregarQr() {
+                    const id = document.getElementById('posicaoId').value;
+                    const res = await fetch(`/fila/qr/${id}`);
+                    if (!res.ok) {
+                        document.getElementById('qrMensagem').textContent = 'QR code não disponível para esta senha.';
+                        document.getElementById('qrContainer').style.display = 'block';
+                        document.getElementById('qrImage').src = '';
+                        return;
+                    }
+                    const data = await res.json();
+                    document.getElementById('qrContainer').style.display = 'block';
+                    document.getElementById('qrImage').src = `data:image/png;base64,${data.qr_code_base64}`;
+                    document.getElementById('qrMensagem').textContent = 'Digitalize este QR code com o telefone ou tablet para aceder à sua senha.';
                 }
             </script>
         </body>
