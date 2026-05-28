@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, Optional
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
@@ -20,10 +21,54 @@ import os
 import threading
 import time
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+
+       # watcher de proximidade iniciado no arranque da aplicação
+
+
+    def _proximity_watcher() -> None:
+        threshold = int(os.environ.get("ALERT_THRESHOLD", "4"))
+        interval = float(os.environ.get("ALERT_CHECK_INTERVAL", "5"))
+        while True:
+            try:
+                fila = gestor.listar_fila()
+                for senha in list(fila):
+                    if senha.via_emissao == "digital" and not senha.alerta_enviado:
+                        try:
+                            pos = gestor.posicao(senha.id)
+                        except ValueError:
+                            continue
+                        if pos <= threshold:
+                            contact = gestor.get_notification_contact(senha.id)
+                            mensagem = f"A sua senha {senha.id} está próxima (posição {pos})."
+                            if contact:
+                                try:
+                                    notificar_usuario(contact.get("email"), contact.get("telefone"), mensagem)
+                                except Exception:
+                                    pass
+                            senha.alerta_enviado = True
+                            gestor._salvar_estado()
+            except Exception:
+                pass
+            time.sleep(interval)
+
+    thread = threading.Thread(target=_proximity_watcher, daemon=True)
+    thread.start()
+    try:
+        yield
+    finally:
+        
+        # thread é daemon; nada a limpar explicitamente
+
+        
+        pass
+
 app = FastAPI(
     title="Queue System",
     description="API de gestão de filas com monitorização online e interface web interativa.",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 STATE_FILE = Path(__file__).resolve().parent.parent / "queue_state.json"
@@ -172,7 +217,10 @@ def home() -> str:
 
 @app.post("/fila/emitir", response_model=SenhaOutput)
 def emitir_senha(pessoa: PessoaInput) -> dict:
+    
     # Não persistir contactos do utilizador: registamos contacto apenas para notificação temporária
+    
+
     persisted_cliente = Pessoa(
         id=pessoa.id,
         nome=pessoa.nome,
@@ -183,11 +231,17 @@ def emitir_senha(pessoa: PessoaInput) -> dict:
         acesso_digital=pessoa.acesso_digital,
     )
     senha = gestor.emitir_senha(persisted_cliente)
+
     # Registar contacto temporário para notificações (não persistido)
+
+
     contact_info = {"email": pessoa.email, "telefone": pessoa.telefone}
     if pessoa.email or pessoa.telefone:
         gestor.register_notification_contact(senha.id, contact_info)
+
         # enviar notificação inicial (tentativa); não falhar a API se não for possível
+
+    
         mensagem = f"A sua senha {senha.id} foi emitida."
         try:
             notificar_usuario(pessoa.email, pessoa.telefone, mensagem)
@@ -196,36 +250,7 @@ def emitir_senha(pessoa: PessoaInput) -> dict:
     return _senha_para_dict(senha)
 
 
-@app.on_event("startup")
-def start_proximity_watcher() -> None:
-    def _proximity_watcher() -> None:
-        threshold = int(os.environ.get("ALERT_THRESHOLD", "4"))
-        interval = float(os.environ.get("ALERT_CHECK_INTERVAL", "5"))
-        while True:
-            try:
-                fila = gestor.listar_fila()
-                for senha in list(fila):
-                    if senha.via_emissao == "digital" and not senha.alerta_enviado:
-                        try:
-                            pos = gestor.posicao(senha.id)
-                        except ValueError:
-                            continue
-                        if pos <= threshold:
-                            contact = gestor.get_notification_contact(senha.id)
-                            mensagem = f"A sua senha {senha.id} está próxima (posição {pos})."
-                            if contact:
-                                try:
-                                    notificar_usuario(contact.get("email"), contact.get("telefone"), mensagem)
-                                except Exception:
-                                    pass
-                            senha.alerta_enviado = True
-                            gestor._salvar_estado()
-            except Exception:
-                pass
-            time.sleep(interval)
 
-    thread = threading.Thread(target=_proximity_watcher, daemon=True)
-    thread.start()
 
 @app.get("/fila/qr/{senha_id}")
 def qr_senha(senha_id: int) -> dict:
