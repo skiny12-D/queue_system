@@ -8,7 +8,10 @@ class Pessoa:
     id: int
     nome: str
     contacto: Optional[str] = None
+    email: Optional[str] = None
+    telefone: Optional[str] = None
     prioridade: int = 0
+    acesso_digital: bool = True
 
     def __str__(self) -> str:
         return f"Pessoa(id={self.id}, nome={self.nome})"

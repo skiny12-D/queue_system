@@ -1,0 +1,6 @@
+{
+  "capacidade": 100,
+  "politica": "FIFO",
+  "next_id": 2,
+  "fila": []
+}

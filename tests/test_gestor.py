@@ -20,6 +20,22 @@ def test_emitir_e_posicao_e_chamar():
     assert chamada.estado == "chamada"
 
 
+def test_emitir_senha_papel_nao_gera_qr():
+    gestor = GestorFila(capacidade=5, politica="FIFO")
+    pessoa = Pessoa(id=1, nome="Ana", acesso_digital=False)
+    senha = gestor.emitir_senha(pessoa)
+    assert senha.via_emissao == "papel"
+    assert senha.qr_code_base64 is None
+
+
+def test_emitir_senha_digital_gera_qr():
+    gestor = GestorFila(capacidade=5, politica="FIFO")
+    pessoa = Pessoa(id=2, nome="Bruno", email="bruno@example.com")
+    senha = gestor.emitir_senha(pessoa)
+    assert senha.via_emissao == "digital"
+    assert senha.qr_code_base64 is not None
+
+
 def test_cancelar_senha():
     gestor = GestorFila(capacidade=2, politica="FIFO")
     pessoa = Pessoa(id=1, nome="Ana")

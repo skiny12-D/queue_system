@@ -7,7 +7,10 @@ requires-python = ">=3.11"
 authors = ["Queue System <noreply@example.com>"]
 dependencies = [
   "fastapi>=0.109.0",
-  "uvicorn>=0.22.0"
+  "uvicorn>=0.22.0",
+  "qrcode>=7.3",
+  "Pillow>=10.0"
+  ,"twilio>=8.0.0"
 ]
 
 [project.optional-dependencies]
