@@ -5,6 +5,8 @@ from typing import Optional
 from queue_system.gestor import GestorFila
 from queue_system.entidades.senha import Senha
 
+# comnetraio: marcador no PainelConsulta
+
 class PainelConsulta:
     def __init__(self, gestor: GestorFila):
         self.gestor = gestor

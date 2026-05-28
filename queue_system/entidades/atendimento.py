@@ -9,6 +9,8 @@ from queue_system.entidades.senha import Senha
 if TYPE_CHECKING:
     from queue_system.operadores import Operador
 
+# comnetraio: marcador em entidade Atendimento
+
 @dataclass
 class Atendimento:
     id: int

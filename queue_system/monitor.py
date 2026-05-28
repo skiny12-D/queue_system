@@ -6,6 +6,8 @@ from typing import List
 from queue_system.gestor import GestorFila
 from queue_system.entidades.atendimento import Atendimento
 
+# comnetraio: marcador no MonitorAgencia
+
 class MonitorAgencia:
     def __init__(self, agencia: str, gestor: GestorFila):
         self.agencia = agencia

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# comnetraio: marcador para localizar a API principal
+
 from pathlib import Path
 from typing import Dict, Optional
 

@@ -6,6 +6,8 @@ from typing import Optional
 
 from queue_system.entidades.pessoa import Pessoa
 
+# comnetraio: marcador em entidade Senha
+
 @dataclass
 class Senha:
     id: int

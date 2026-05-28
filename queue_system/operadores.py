@@ -6,6 +6,8 @@ from queue_system.entidades.atendimento import Atendimento
 from queue_system.entidades.senha import Senha
 from queue_system.gestor import GestorFila
 
+# comnetraio: marcador em operadores
+
 class Operador:
     def __init__(self, id: int, nome: str):
         self.id = id

@@ -5,6 +5,8 @@ from io import BytesIO
 
 import qrcode
 
+# comnetraio: marcador no utilitario de QR
+
 
 def gerar_qr_code_base64(payload: str) -> str:
     qr = qrcode.QRCode(version=1, box_size=5, border=2)

@@ -8,6 +8,8 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+# comnetraio: marcador no notificador
+
 
 def enviar_email(destino: str, assunto: str, mensagem: str) -> bool:
     logger.info("Enviar email para %s: %s", destino, assunto)

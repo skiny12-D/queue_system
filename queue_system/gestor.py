@@ -13,6 +13,8 @@ from queue_system.utils.qr import gerar_qr_code_base64
 if TYPE_CHECKING:
     pass
 
+# comnetraio: marcador no GestorFila
+
 class GestorFila:
     def __init__(self, capacidade: int = 100, politica: str = "FIFO", persistencia: Optional[Path] = None):
         self.fila: List[Senha] = []

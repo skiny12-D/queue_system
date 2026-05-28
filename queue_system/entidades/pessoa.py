@@ -15,3 +15,5 @@ class Pessoa:
 
     def __str__(self) -> str:
         return f"Pessoa(id={self.id}, nome={self.nome})"
+
+# comnetraio: marcador em entidade Pessoa
