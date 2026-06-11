@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SIGF – Gerar Senha</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Mono:wght@700&display=swap" rel="stylesheet" />
+  <!-- O ?v=1.2 força o navegador a limpar o cache e carregar a versão nova -->
+  <script src="../Back/senha_javascript.js?v=1.2" defer></script>
+  <style>
+    /* ============================================================
+       SIGF – Página de Senha  |  Layout split inspirado no BNC
+       ============================================================ */
+    :root {
+      --p: #050259;
+      --g: #ffef01;
+      --t: #04b2d9; 
+      --db: #182559;
+      --mb: #28316a;
+      --lb: #155dfd;
+      --green: #2ecc71;
+      --red: #e74c3c;
+      --amber: #f39c12;
+      --wh: #ffffff;
+      --bg: #e8eef8; /* fundo geral – azul clarinho à la BNC */
+      --gl: #f4f7fc;
+      --gm: #dde4f0;
+      --grey: #5a6a8a;
+      --font: 'DM Sans', Arial, sans-serif;
+      --mono: 'Space Mono', monospace;
+      --r: 14px;
+      --sh: 0 4px 24px rgba(5, 2, 89, .12);
+    }
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--p);
+      min-height: 100vh;
+    }
+
+    /* ── NAVBAR ================================================= */
+    .navbar {
+      position: sticky; top: 0; z-index: 100;
+      height: 64px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 5%;
+      background: var(--p);
+      box-shadow: 0 2px 12px rgba(5, 2, 89, .3);
+    }
+    .logo { display: flex; align-items: center; }
+    .logo img { height: 40px; width: auto; object-fit: contain; }
+
+    .logo-text { font-size: 18px; font-weight: 800; color: var(--wh); letter-spacing: 1px; }
+    .logo-text span { color: var(--g); }
+    .nav-links { display: flex; align-items: center; gap: 24px; list-style: none; }
+    .nav-links a { color: rgba(255, 255, 255, .8); font-size: 14px; font-weight: 500; transition: color .2s; }
+    .nav-links a:hover { color: var(--g); }
+    .nav-cta {
+      background: var(--g) !important; color: var(--p) !important;
+      padding: 8px 20px; border-radius: 7px; font-weight: 700 !important;
+    }
+    .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; }
+    .hamburger span { display: block; width: 22px; height: 2px; background: var(--wh); border-radius: 2px; }
+
+    /* ── LAYOUT PRINCIPAL ================================================= */
+    .page-shell {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 0;
+      min-height: calc(100vh - 64px);
+    }
+
+    /* ═══════ COLUNA ESQUERDA — área principal ═══════ */
+    .col-left {
+      padding: 36px 40px;
+      background: var(--bg);
+      overflow-y: auto;
+    }
+
+    /* Badge da época */
+    .epoch-badge {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 6px 16px; border-radius: 20px;
+      font-size: 12px; font-weight: 700;
+      margin-bottom: 28px; letter-spacing: .3px;
+    }
+    .epoch-badge.normal { background: #e3f3ff; color: var(--t); border: 1.5px solid var(--t); }
+    .epoch-badge.exames { background: #fff8e1; color: var(--amber); border: 1.5px solid var(--amber); }
+    .epoch-badge.inscricoes { background: #ededff; color: var(--p); border: 1.5px solid var(--p); }
+
+    /* Cabeçalho da área */
+    .area-title {
+      font-size: clamp(1.4rem, 2.5vw, 1.9rem);
+      font-weight: 800; color: var(--p);
+      margin-bottom: 6px;
+    }
+    .area-sub {
+      font-size: 14px; color: var(--grey);
+      margin-bottom: 32px;
+    }
+
+    /* Card branco (container do formulário) */
+    .form-card {
+      background: var(--wh);
+      border-radius: 20px;
+      box-shadow: var(--sh);
+      padding: 28px 28px 32px;
+    }
+    .form-card-title {
+      font-size: 15px; font-weight: 700; color: var(--p);
+      margin-bottom: 20px; display: flex; align-items: center; gap: 8px;
+    }
+    .form-card-title span { font-size: 18px; }
+
+    /* ── DEPT SELECTOR ── */
+    .dept-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    .dept-btn {
+      border: 2px solid var(--gm);
+      border-radius: var(--r);
+      padding: 28px 16px;
+      cursor: pointer;
+      text-align: center;
+      background: var(--gl);
+      transition: all .25s;
+      position: relative;
+      overflow: hidden;
+    }
+    .dept-btn::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, var(--p), var(--lb));
+      opacity: 0; transition: opacity .25s;
+      border-radius: 12px;
+    }
+    .dept-btn:hover { border-color: var(--lb); transform: translateY(-2px); }
+    .dept-btn:hover::before { opacity: .06; }
+    .dept-btn.selected {
+      border-color: var(--p);
+      background: var(--p);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(5, 2, 89, .25);
+    }
+    .dept-btn.selected::before { opacity: 0; }
+    .dept-icon {
+      font-size: 32px; margin-bottom: 10px;
+      display: block; position: relative; z-index: 1;
+    }
+    .dept-name {
+      font-size: 15px; font-weight: 800;
+      color: var(--p); display: block;
+      position: relative; z-index: 1; margin-bottom: 4px;
+    }
+    .dept-btn.selected .dept-name { color: var(--g); }
+    .dept-desc {
+      font-size: 12px; color: var(--grey);
+      position: relative; z-index: 1;
+    }
+    .dept-btn.selected .dept-desc { color: rgba(255, 255, 255, .65); }
+    .dept-count-pill {
+      display: inline-block; margin-top: 10px;
+      padding: 3px 12px; border-radius: 10px;
+      font-size: 11px; font-weight: 700;
+      background: var(--gm); color: var(--p);
+      position: relative; z-index: 1;
+      transition: all .25s;
+    }
+    .dept-btn.selected .dept-count-pill { background: rgba(255, 239, 1, .2); color: var(--g); }
+
+    /* Separador */
+    .form-divider {
+      border: none; border-top: 1.5px solid var(--gm);
+      margin: 20px 0;
+    }
+
+    /* Tipo de serviço */
+    .field-label {
+      display: block; font-size: 13px; font-weight: 600;
+      color: var(--p); margin-bottom: 7px;
+    }
+    .field-select {
+      width: 100%; padding: 11px 14px;
+      border: 2px solid var(--gm); border-radius: 9px;
+      font-size: 14px; font-family: var(--font);
+      color: var(--p); background: var(--wh);
+      outline: none; cursor: pointer;
+      transition: border .2s; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23050259' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 36px;
+    }
+    .field-select:focus { border-color: var(--p); }
+
+    /* Notificações */
+    .notif-wrap { margin: 20px 0; }
+    .notif-toggle-row {
+      display: flex; align-items: center; gap: 9px;
+      cursor: pointer; font-size: 13px;
+      font-weight: 600; color: var(--p);
+      margin-bottom: 12px;
+      user-select: none;
+    }
+    .notif-toggle-row input[type=checkbox] {
+      width: 16px; height: 16px;
+      accent-color: var(--p); cursor: pointer;
+    }
+    .notif-fields {
+      display: none; flex-direction: column; gap: 10px;
+    }
+    .notif-fields.open { display: flex; }
+    .notif-fields input {
+      padding: 10px 13px; border: 2px solid var(--gm);
+      border-radius: 9px; font-size: 13px;
+      font-family: var(--font); outline: none;
+      transition: border .2s; width: 100%;
+      color: var(--p);
+    }
+    .notif-fields input:focus { border-color: var(--p); }
+    .notif-fields input::placeholder { color: #aab; }
+
+    /* Botão principal */
+    .btn-main {
+      width: 100%; padding: 15px;
+      background: var(--p); color: var(--wh);
+      border: none; border-radius: 11px;
+      font-size: 16px; font-weight: 800;
+      font-family: var(--font);
+      cursor: pointer; transition: all .2s;
+      display: flex; align-items: center; justify-content: center; gap: 9px;
+      margin-top: 24px;
+      letter-spacing: .3px;
+    }
+    .btn-main:hover:not(:disabled) {
+      background: var(--mb);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(5, 2, 89, .28);
+    }
+    .btn-main:disabled { opacity: .45; cursor: not-allowed; }
+
+    /* ── RESULTADO ── */
+    #resultSection { display: none; }
+    .result-ticket-box {
+      background: linear-gradient(135deg, var(--p) 0%, var(--mb) 100%);
+      border-radius: 18px; padding: 30px 26px; color: var(--wh);
+      text-align: center; box-shadow: 0 8px 32px rgba(5, 2, 89, .3); margin-bottom: 18px;
+    }
+    .show-anim { animation: popIn .4s cubic-bezier(.34, 1.56, .64, 1); }
+    @keyframes popIn { from { transform: scale(.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .rc-label { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; opacity: .6; }
+    .rc-id {
+      font-family: var(--mono);
+      font-size: 52px; font-weight: 700;
+      color: var(--g); line-height: 1.1;
+      margin: 10px 0 6px; letter-spacing: 3px;
+    }
+    .rc-dept { font-size: 14px; opacity: .8; margin-bottom: 4px; }
+    .rc-prio {
+      display: inline-block; padding: 4px 14px;
+      border-radius: 10px; font-size: 11px; font-weight: 700;
+      margin-top: 6px;
+    }
+    .prio-verde { background: var(--green); color: #fff; }
+    .prio-amarela { background: var(--amber); color: #fff; }
+    .prio-azul { background: var(--lb); color: #fff; }
+
+    .result-stats {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 10px; margin: 16px 0;
+    }
+    .rstat {
+      background: var(--gl); border-radius: 10px;
+      padding: 14px; text-align: center;
+    }
+    .rstat .rv {
+      font-size: 26px; font-weight: 800; color: var(--p);
+      font-family: var(--mono); line-height: 1;
+    }
+    .rstat .rl { font-size: 11px; color: var(--grey); margin-top: 4px; }
+
+    .btn-pdf {
+      width: 100%; padding: 12px;
+      background: var(--g); color: var(--p);
+      border: none; border-radius: 10px;
+      font-size: 14px; font-weight: 800;
+      font-family: var(--font); cursor: pointer;
+      transition: opacity .2s; margin-bottom: 9px;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .btn-pdf:hover { opacity:0.85; }
+    .btn-nova {
+      width: 100%; padding: 11px;
+      background: transparent; color: var(--p);
+      border: 2px solid var(--gm); border-radius: 10px;
+      font-size: 13px; font-weight: 700;
+      font-family: var(--font); cursor: pointer; transition: all .2s;
+    }
+    .btn-nova:hover { border-color: var(--p); background: var(--p); color: var(--wh); }
+
+    /* Alerta 20 min */
+    .alert-20 {
+      display: none; background: #fff8e1;
+      border: 2px solid var(--g); border-radius: 12px;
+      padding: 14px 16px; margin-bottom: 20px;
+      animation: pulse 2s infinite;
+    }
+    .alert-20.show { display: block; }
+    .alert-20 h4 { font-size: 14px; font-weight: 700; color: var(--p); margin-bottom: 3px; }
+    .alert-20 p { font-size: 12px; color: var(--grey); }
+    @keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: .75 } }
+
+    /* =================================================
+       COLUNA DIREITA — painel de acompanhamento
+    ================================================= */
+    .col-right {
+      background: var(--p);
+      position: sticky; top: 64px;
+      height: calc(100vh - 64px);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Cabeçalho do painel */
+    .panel-header {
+      padding: 24px 24px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, .1);
+      padding-bottom: 16px;
+    }
+    .panel-title {
+      font-size: 18px; font-weight: 800;
+      color: var(--wh); margin-bottom: 4px;
+    }
+    .panel-sub {
+      font-size: 12px; color: rgba(255, 255, 255, .5);
+      margin-bottom: 14px;
+    }
+
+    /* WS indicator */
+    .ws-row {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; color: rgba(255, 255, 255, .5);
+      margin-bottom: 12px;
+    }
+    .ws-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); }
+    .ws-dot.on { background: var(--green); }
+
+    /* Tabs de departamento */
+    .dept-tabs {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 6px; margin-bottom: 0;
+    }
+    .d-tab {
+      padding: 9px 10px; border-radius: 8px;
+      font-size: 13px; font-weight: 700;
+      text-align: center; cursor: pointer;
+      background: rgba(255, 255, 255, .07);
+      color: rgba(255, 255, 255, .6);
+      border: none; font-family: var(--font);
+      transition: all .2s;
+    }
+    .d-tab.active {
+      background: var(--g); color: var(--p);
+    }
+    .d-tab:not(.active):hover {
+      background: rgba(255, 255, 255, .12);
+      color: var(--wh);
+    }
+
+    /* Stats da fila */
+    .queue-stats {
+      padding: 16px 24px;
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, .08);
+    }
+    .qs-item { text-align: center; }
+    .qs-val {
+      font-family: var(--mono);
+      font-size: 22px; font-weight: 700;
+      color: var(--g); line-height: 1;
+    }
+    .qs-lbl { font-size: 10px; color: rgba(255, 255, 255, .45); margin-top: 3px; }
+    .qs-cls {
+      font-size: 11px; font-weight: 700; margin-top: 3px;
+    }
+    .qs-cls.fast { color: var(--green); }
+    .qs-cls.medium { color: var(--amber); }
+    .qs-cls.slow { color: var(--red); }
+
+    /* Lista de senhas */
+    .panel-list-hdr {
+      padding: 12px 24px 6px;
+      font-size: 10px; font-weight: 700;
+      color: rgba(255, 255, 255, .4);
+      text-transform: uppercase; letter-spacing: 1.5px;
+    }
+
+    .panel-list {
+      flex: 1; overflow-y: auto;
+      padding: 0 16px 16px;
+    }
+    .panel-list::-webkit-scrollbar { width: 4px; }
+    .panel-list::-webkit-scrollbar-track { background: rgba(255, 255, 255, .04); }
+    .panel-list::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .15); border-radius: 4px; }
+
+    .ticket-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 14px;
+      background: rgba(255, 255, 255, .06);
+      border-radius: 10px; margin-bottom: 7px;
+      border-left: 3px solid rgba(4, 178, 217, .5);
+      transition: background .2s;
+    }
+    .ticket-row:hover { background: rgba(255, 255, 255, .1); }
+    .ticket-row.prio-amarela { border-left-color: var(--amber); }
+    .ticket-row.prio-azul { border-left-color: var(--lb); }
+    .ticket-row.prio-verde { border-left-color: var(--green); }
+
+    .tr-id {
+      font-family: var(--mono);
+      font-size: 15px; font-weight: 700; color: var(--wh);
+    }
+    .tr-dept { font-size: 11px; color: rgba(255, 255, 255, .5); margin-top: 2px; }
+    .tr-pos {
+      font-size: 11px; color: rgba(255, 255, 255, .4);
+      text-align: right;
+    }
+    .tr-pos strong {
+      display: block; font-size: 14px; font-weight: 700;
+      color: rgba(255, 255, 255, .7);
+    }
+
+    .panel-empty {
+      text-align: center; padding: 40px 20px;
+      color: rgba(255, 255, 255, .3); font-size: 13px;
+    }
+    .panel-empty .pe-icon { font-size: 36px; margin-bottom: 10px; opacity: .4; }
+
+    /* ── TOAST ================================================= */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+      background: var(--p); color: var(--wh);
+      padding: 14px 20px; border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(5, 2, 89, .3);
+      max-width: 320px; font-size: 13px;
+      display: none;
+      animation: slideUp .3s ease;
+    }
+    .toast.show { display: block; }
+    .toast.success { border-left: 4px solid var(--green); }
+    .toast.warning { border-left: 4px solid var(--g); }
+    .toast.error { border-left: 4px solid var(--red); }
+    @keyframes slideUp { from { transform: translateY(16px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+
+    /* ── RESPONSIVO ================================================= */
+    @media(max-width:900px) {
+      .page-shell { grid-template-columns: 1fr; }
+      .col-right {
+        position: static; height: auto;
+        min-height: 360px;
+        order: -1; /* painel vai para cima no mobile */
+      }
+      .panel-list { max-height: 240px; }
+      .nav-links { display: none; flex-direction: column; position: absolute;
+        top: 64px; left: 0; right: 0; background: var(--p);
+        padding: 16px 5%; gap: 14px; }
+      .nav-links.open { display: flex; }
+      .hamburger { display: flex; }
+      .col-left { padding: 24px 20px; }
+    }
+    @media(max-width:480px) {
+      .dept-grid { grid-template-columns: 1fr 1fr; }
+      .result-stats { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── NAVBAR ================================================= -->
+<nav class="navbar">
+  <div class="logo">
+    <img src="/Assets/Logotipo SIGF/Logotipo-sigf.png" alt="SIGF" />
+  </div>
+  <ul class="nav-links" id="navLinks">
+    <li><a href="esqueleto.html">Home</a></li>
+    <li><a href="esqueleto.html#como-funciona">Como funciona</a></li>
+    <li><a href="gerar senha.html" class="nav-cta">Gerar senha</a></li>
+    <li><a href="esqueleto.html#contactos">Contactos</a></li>
+  </ul>
+  <div class="hamburger">
+    <span></span><span></span><span></span>
+  </div>
+</nav>
+
+<!-- ── LAYOUT SPLIT ================================================= -->
+<div class="page-shell">
+
+  <!-- ═══════ COLUNA ESQUERDA ═══════ -->
+  <div class="col-left">
+
+    <!-- Badge da época -->
+    <div class="epoch-badge" id="epochBadge">📋 Dias Normais</div>
+
+    <!-- Alerta 20 min -->
+    <div class="alert-20" id="alert20">
+      <h4>⏰ A sua vez está a aproximar-se!</h4>
+      <p>Faltam aproximadamente 20 minutos para o seu atendimento. Dirija-se à Secretaria.</p>
+    </div>
+
+    <!-- Título -->
+    <div class="area-title"> <strong>Gerar senha</strong></div>
+    <div class="area-sub">Escolha o departamento, confirme o serviço e entre na fila.</div>
+
+    <!-- ── FORMULÁRIO ── -->
+    <div id="formSection">
+      <div class="form-card">
+        <div class="form-card-title">
+          <span>🏛️</span> Informe o tipo de atendimento
+        </div>
+
+        <!-- Selecção de departamento (estilo BNC) -->
+        <div class="dept-grid">
+          <div class="dept-btn" id="btnTes" onclick="selectDept('Tesouraria')">
+            <span class="dept-icon">💰</span>
+            <span class="dept-name">Tesouraria</span>
+            <span class="dept-desc">Pagamentos e propinas</span>
+            <span class="dept-count-pill" id="countTes">0 na fila</span>
+          </div>
+          <div class="dept-btn" id="btnSec" onclick="selectDept('Secretaria')">
+            <span class="dept-icon">📚</span>
+            <span class="dept-name">Secretaria</span>
+            <span class="dept-desc">Assuntos académicos</span>
+            <span class="dept-count-pill" id="countSec">0 na fila</span>
+          </div>
+        </div>
+
+        <hr class="form-divider" />
+
+        <!-- Tipo de serviço -->
+        <label class="field-label" for="tipoSelect">Tipo de serviço</label>
+        <select class="field-select" id="tipoSelect">
+          <option value="verde">Serviço Geral</option>
+        </select>
+
+        <hr class="form-divider" />
+
+        <!-- Notificações opcionais -->
+        <div class="notif-wrap">
+          <label class="notif-toggle-row">
+            <input type="checkbox" id="chkNotif" onchange="toggleNotif()" />
+            Quero receber alertas (opcional)
+          </label>
+          <div class="notif-fields" id="notifFields">
+            <input type="email" id="inputEmail" placeholder="Email — ex: nome@email.com" />
+            <input type="tel" id="inputTel" placeholder="Telemóvel — ex: +244 9XX XXX XXX" />
+          </div>
+        </div>
+
+        <!-- Botão -->
+        <button class="btn-main" id="btnEntrar" onclick="entrarFila()" disabled>
+          🎫 Entrar na fila
+        </button>
+      </div>
+    </div>
+
+    <!-- ── RESULTADO ── -->
+    <div id="resultSection" style="display: none;">
+      <!-- Card da senha -->
+      <div class="result-ticket-box show-anim" id="resultTicket">
+        <div class="rc-label">a sua senha</div>
+        <div class="rc-id" id="rcId">---</div>
+        <div class="rc-dept" id="rcDept">–</div>
+        <div id="rcPrio"></div>
+      </div>
+
+      <!-- Estatísticas -->
+      <div class="result-stats">
+        <div class="rstat">
+          <div class="rv" id="rPos">–</div>
+          <div class="rl">Posição</div>
+        </div>
+        <div class="rstat">
+          <div class="rv" id="rTempo">–</div>
+          <div class="rl">min espera</div>
+        </div>
+      </div>
+
+      <!-- Acções -->
+      <button class="btn-pdf" onclick="downloadPDF()">📄 Descarregar senha em PDF</button>
+      <button class="btn-nova" onclick="novaSenha()">↩ Gerar nova senha</button>
+    </div>
+
+  </div><!-- /col-left -->
+
+  <!-- ═══════ COLUNA DIREITA — Painel ═══════ -->
+  <div class="col-right">
+
+    <div class="panel-header">
+      <div class="panel-title">Painel de Acompanhamento</div>
+      <div class="panel-sub">Actualização automática em tempo real</div>
+      <div class="ws-row">
+        <div class="ws-dot" id="wsDot"></div>
+        <span id="wsLbl">A ligar…</span>
+      </div>
+      <!-- Tabs -->
+      <div class="dept-tabs">
+        <button class="d-tab active" id="tabTes" onclick="switchTab('Tesouraria')">
+          💰 Tesouraria
+        </button>
+        <button class="d-tab" id="tabSec" onclick="switchTab('Secretaria')">
+          📚 Secretaria
+        </button>
+      </div>
+    </div>
+
+    <!-- Estatísticas da fila -->
+    <div class="queue-stats">
+      <div class="qs-item">
+        <div class="qs-val" id="qsQtd">0</div>
+        <div class="qs-lbl">Na fila</div>
+      </div>
+      <div class="qs-item">
+        <div class="qs-val" id="qsTempo">0</div>
+        <div class="qs-lbl">Min espera</div>
+      </div>
+      <div class="qs-item">
+        <div class="qs-val" style="font-size:13px" id="qsCls">–</div>
+        <div class="qs-lbl">Estado</div>
+        <div class="qs-cls fast" id="qsClsCls"></div>
+      </div>
+    </div>
+
+    <!-- Lista de senhas -->
+    <div class="panel-list-hdr">Próximas senhas</div>
+    <div class="panel-list" id="panelList">
+      <div class="panel-empty">
+        <div class="pe-icon">🎫</div>
+        A aguardar dados…
+      </div>
+    </div>
+
+  </div><!-- /col-right -->
+
+</div><!-- /page-shell -->
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>

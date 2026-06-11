@@ -15,6 +15,10 @@ class Senha:
     estado: str
     pessoa: Pessoa
     via_emissao: str = "digital"
+    departamento: str = "Geral"
+    prioridade_label: str = "verde"
+    ticket_id: Optional[str] = None
+    ws_client_id: Optional[str] = None
     qr_payload: Optional[str] = None
     qr_code_base64: Optional[str] = None
     alerta_enviado: bool = False
@@ -46,6 +50,10 @@ class Senha:
             "hora_emissao": self.hora_emissao.isoformat(),
             "estado": self.estado,
             "via_emissao": self.via_emissao,
+            "departamento": self.departamento,
+            "prioridade_label": self.prioridade_label,
+            "ticket_id": self.ticket_id,
+            "ws_client_id": self.ws_client_id,
             "qr_payload": self.qr_payload,
             "qr_code_base64": self.qr_code_base64,
             "alerta_enviado": self.alerta_enviado,
@@ -80,6 +88,10 @@ class Senha:
             estado=str(dados["estado"]),
             pessoa=pessoa,
             via_emissao=str(dados.get("via_emissao", "digital")),
+            departamento=str(dados.get("departamento", "Geral")),
+            prioridade_label=str(dados.get("prioridade_label", "verde")),
+            ticket_id=dados.get("ticket_id"),
+            ws_client_id=dados.get("ws_client_id"),
             qr_payload=dados.get("qr_payload"),
             qr_code_base64=dados.get("qr_code_base64"),
             alerta_enviado=bool(dados.get("alerta_enviado", False)),

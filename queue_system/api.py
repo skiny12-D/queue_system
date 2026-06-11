@@ -2,12 +2,18 @@ from __future__ import annotations
 
 # comnetraio: marcador para localizar a API principal
 
-from pathlib import Path
-from typing import Dict, Optional
+import asyncio
+import json
+import logging
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+import qrcode
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from queue_system.entidades.pessoa import Pessoa
@@ -17,20 +23,17 @@ from queue_system.monitor import MonitorAgencia
 from queue_system.painel import PainelConsulta
 from queue_system.operadores import Operador
 from queue_system.notificador import notificar_usuario
-import os
-import threading
-import time
+
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    stop_event = asyncio.Event()
 
-       # watcher de proximidade iniciado no arranque da aplicação
-
-
-    def _proximity_watcher() -> None:
+    async def _proximity_watcher() -> None:
         threshold = int(os.environ.get("ALERT_THRESHOLD", "4"))
         interval = float(os.environ.get("ALERT_CHECK_INTERVAL", "5"))
-        while True:
+        while not stop_event.is_set():
             try:
                 fila = gestor.listar_fila()
                 for senha in list(fila):
@@ -50,19 +53,19 @@ async def lifespan(app: FastAPI):
                             senha.alerta_enviado = True
                             gestor._salvar_estado()
             except Exception:
-                pass
-            time.sleep(interval)
+                logger.exception("Erro no watcher de proximidade")
+            await asyncio.sleep(interval)
 
-    thread = threading.Thread(target=_proximity_watcher, daemon=True)
-    thread.start()
+    task = asyncio.create_task(_proximity_watcher())
     try:
         yield
     finally:
-        
-        # thread é daemon; nada a limpar explicitamente
-
-
-        pass
+        stop_event.set()
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 app = FastAPI(
     title="Queue System",
@@ -77,6 +80,21 @@ monitor = MonitorAgencia("agencia-principal", gestor)
 painel = PainelConsulta(gestor)
 operador_principal = Operador(id=1, nome="Operador Principal")
 _atendimento_counter = 1
+
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+if (STATIC_DIR / "Site").exists():
+    app.mount("/Site", StaticFiles(directory=str(STATIC_DIR / "Site")), name="site")
+if (STATIC_DIR / "Painel").exists():
+    app.mount("/Painel", StaticFiles(directory=str(STATIC_DIR / "Painel")), name="painel")
+
+PUBLIC_WS_CLIENTS: Dict[str, WebSocket] = {}
+PANEL_WS_CONNECTIONS: list[WebSocket] = []
+current_epoch = "normal"
+USERS = {
+    "admin": {"senha": "123", "nome": "Administrador", "papel": "admin", "dept": None},
+    "tesouraria": {"senha": "tes", "nome": "Gestor Tesouraria", "papel": "gestor", "dept": "Tesouraria"},
+    "secretaria": {"senha": "sec", "nome": "Gestor Secretaria", "papel": "gestor", "dept": "Secretaria"},
+}
 
 class PessoaInput(BaseModel):
     id: int
@@ -93,12 +111,15 @@ class SenhaOutput(BaseModel):
     hora_emissao: str
     via_emissao: str
     qr_code_base64: Optional[str] = None
-    pessoa: Dict[str, Optional[str]]
+    pessoa: Dict[str, Any]
 
 
 def _senha_para_dict(senha: Senha) -> dict:
     return {
         "id": senha.id,
+        "ticket_id": senha.ticket_id,
+        "departamento": senha.departamento,
+        "prioridade_label": senha.prioridade_label,
         "estado": senha.estado,
         "hora_emissao": senha.hora_emissao.isoformat(),
         "via_emissao": senha.via_emissao,
@@ -113,6 +134,44 @@ def _senha_para_dict(senha: Senha) -> dict:
             "acesso_digital": senha.pessoa.acesso_digital,
         },
     }
+
+class SIGFJoinRequest(BaseModel):
+    departamento: str
+    prioridade: str
+    email: Optional[str] = None
+    telefone: Optional[str] = None
+    ws_client_id: Optional[str] = None
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+async def _broadcast_public(message: dict) -> None:
+    stale_clients: list[str] = []
+    for client_id, websocket in PUBLIC_WS_CLIENTS.items():
+        try:
+            await websocket.send_text(json.dumps(message))
+        except Exception:
+            stale_clients.append(client_id)
+    for client_id in stale_clients:
+        PUBLIC_WS_CLIENTS.pop(client_id, None)
+
+async def notify_public_status() -> None:
+    dados = {
+        "tipo": "estado_fila",
+        "dados": {
+            "epoch": current_epoch,
+            "filas": {
+                dept: {
+                    "quantidade": len(gestor.listar_fila(departamento=dept)),
+                    "tempo_estimado_min": len(gestor.listar_fila(departamento=dept)) * 5,
+                    "senhas": [senha.to_dict() for senha in gestor.listar_fila(departamento=dept)[:10]],
+                }
+                for dept in ["Tesouraria", "Secretaria"]
+            },
+        },
+    }
+    await _broadcast_public(dados)
 
 @app.get("/", response_class=HTMLResponse)
 def home() -> str:
@@ -242,6 +301,185 @@ def home() -> str:
         </body>
     </html>
     """
+
+@app.get("/sigf")
+def sigf_root() -> RedirectResponse:
+    return RedirectResponse(url="/Site/Front/esqueleto.html")
+
+@app.get("/api/queue/status")
+def queue_status() -> dict:
+    total = len(gestor.listar_fila())
+    return {"total_na_fila": total, "epoch": current_epoch}
+
+@app.get("/api/queue/tipos-servico")
+def queue_tipos_servico() -> dict:
+    tipos = {"verde": {"label": "Serviço Geral"}}
+    if current_epoch == "exames":
+        tipos["amarela"] = {"label": "Recurso / Exame"}
+    elif current_epoch == "inscricoes":
+        tipos["azul"] = {"label": "Inscrição / Matrícula"}
+    return {"tipos": tipos}
+
+@app.post("/api/queue/join")
+async def queue_join(req: SIGFJoinRequest) -> dict:
+    departamento = req.departamento if req.departamento in {"Tesouraria", "Secretaria"} else "Geral"
+    prioridade_label = req.prioridade if req.prioridade in {"verde", "amarela", "azul"} else "verde"
+    prioridade_value = {"verde": 0, "amarela": 1, "azul": 2}.get(prioridade_label, 0)
+    cliente = Pessoa(
+        id=0,
+        nome="Cliente SIGF",
+        contacto=None,
+        email=req.email,
+        telefone=req.telefone,
+        prioridade=prioridade_value,
+        acesso_digital=bool(req.email or req.telefone),
+    )
+    senha = gestor.emitir_senha(
+        cliente,
+        departamento=departamento,
+        prioridade_label=prioridade_label,
+        ws_client_id=req.ws_client_id,
+    )
+    if req.email or req.telefone:
+        contact_info = {"email": req.email, "telefone": req.telefone}
+        gestor.register_notification_contact(senha.id, contact_info)
+        mensagem = f"A sua senha {senha.ticket_id} foi emitida."
+        try:
+            notificar_usuario(req.email, req.telefone, mensagem)
+        except Exception:
+            pass
+    await notify_public_status()
+    return {
+        "ticket_id": senha.ticket_id,
+        "departamento": senha.departamento,
+        "posicao": gestor.posicao(senha.id, departamento=departamento),
+        "tempo_estimado_min": len(gestor.listar_fila(departamento=departamento)) * 5,
+        "prioridade": prioridade_label,
+    }
+
+@app.get("/api/ticket/{ticket_id}/pdf")
+async def get_ticket_pdf(ticket_id: str) -> Response:
+    senha = gestor.obter_senha_por_ticket_id(ticket_id)
+    if senha is None:
+        raise HTTPException(status_code=404, detail="Ticket não encontrado")
+    try:
+        from fpdf import FPDF
+    except ImportError:
+        raise HTTPException(status_code=500, detail="Dependência 'fpdf' não instalada")
+    import io
+
+    qr = qrcode.QRCode(box_size=10, border=2)
+    qr.add_data(f"SIGF-VALID:{ticket_id}")
+    qr.make(fit=True)
+    img_qr = qr.make_image(fill_color="black", back_color="white")
+    buffer = io.BytesIO()
+    img_qr.save(buffer, format="PNG")
+    buffer.seek(0)
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 20)
+    pdf.cell(0, 15, "SIGF - Senha de Atendimento", ln=True, align="C")
+    pdf.set_font("Arial", 'B', 48)
+    pdf.cell(0, 35, ticket_id, ln=True, align="C")
+    pdf.image(buffer, x=75, y=70, w=60)
+    pdf.set_font("Arial", '', 12)
+    pdf.set_y(140)
+    pdf.cell(0, 10, f"Departamento: {senha.departamento}", ln=True, align="C")
+    pdf.cell(0, 10, f"Gerado em: {senha.hora_emissao.strftime('%d/%m/%Y %H:%M')}", ln=True, align="C")
+    pdf_content = pdf.output(dest='S').encode('latin-1')
+    return Response(content=pdf_content, media_type="application/pdf", headers={"Content-Disposition": f"attachment; filename=senha_{ticket_id}.pdf"})
+
+@app.post("/api/chamar")
+async def api_chamar(data: dict) -> dict:
+    departamento = data.get("dept")
+    senha = gestor.chamar_proximo(departamento=departamento) if departamento else gestor.chamar_proximo()
+    if senha is None:
+        raise HTTPException(status_code=404, detail="Fila vazia")
+    if senha.ws_client_id in PUBLIC_WS_CLIENTS:
+        try:
+            await PUBLIC_WS_CLIENTS[senha.ws_client_id].send_text(json.dumps({
+                "tipo": "senha_chamada",
+                "mensagem": f"Senha {senha.ticket_id} chamada para o atendimento.",
+                "ticket_id": senha.ticket_id,
+            }))
+        except Exception:
+            PUBLIC_WS_CLIENTS.pop(senha.ws_client_id, None)
+    await notify_public_status()
+    return {"chamada": _senha_para_dict(senha)}
+
+@app.post("/api/login")
+def api_login(payload: LoginRequest) -> dict:
+    user = USERS.get(payload.username)
+    if user and user["senha"] == payload.password:
+        return {
+            "nome": user["nome"],
+            "papel": user["papel"],
+            "dept": user["dept"],
+        }
+    raise HTTPException(status_code=401, detail="Credenciais inválidas")
+
+@app.post("/api/admin/set-epoch")
+def api_set_epoch(payload: dict) -> dict:
+    epoch = str(payload.get("epoch", "normal"))
+    if epoch not in {"normal", "exames", "inscricoes"}:
+        raise HTTPException(status_code=400, detail="Época inválida")
+    global current_epoch
+    current_epoch = epoch
+    return {"epoch": current_epoch}
+
+@app.post("/api/gestor/toggle")
+def api_gestor_toggle(payload: dict) -> dict:
+    gestor_id = payload.get("gestor_id")
+    if gestor_id is None:
+        raise HTTPException(status_code=400, detail="gestor_id é obrigatório")
+    return {"status": "ok", "gestor_id": gestor_id}
+
+@app.get("/api/estado")
+def api_estado() -> dict:
+    return {
+        "epoch": current_epoch,
+        "filas": {
+            dept: {
+                "total": len(gestor.listar_fila(departamento=dept)),
+                "tempo_medio": len(gestor.listar_fila(departamento=dept)) * 5,
+                "senhas": [senha.to_dict() for senha in gestor.listar_fila(departamento=dept)[:10]],
+            }
+            for dept in ["Tesouraria", "Secretaria"]
+        },
+        "total_chamadas_hoje": 0,
+    }
+
+@app.post("/api/avaliacao")
+def api_avaliacao(payload: dict) -> dict:
+    estrelas = payload.get("estrelas")
+    comentario = payload.get("comentario", "")
+    if not isinstance(estrelas, int) or estrelas < 1 or estrelas > 5:
+        raise HTTPException(status_code=400, detail="Estrelas inválidas")
+    logger.info("Avaliação recebida: %s estrelas, comentário: %s", estrelas, comentario)
+    return {"status": "avaliacao registrada"}
+
+@app.websocket("/ws/public/{client_id}")
+async def websocket_publico(websocket: WebSocket, client_id: str) -> None:
+    await websocket.accept()
+    PUBLIC_WS_CLIENTS[client_id] = websocket
+    try:
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        PUBLIC_WS_CLIENTS.pop(client_id, None)
+
+@app.websocket("/ws/painel")
+async def websocket_painel(websocket: WebSocket) -> None:
+    await websocket.accept()
+    PANEL_WS_CONNECTIONS.append(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        PANEL_WS_CONNECTIONS.remove(websocket)
 
 @app.post("/fila/emitir", response_model=SenhaOutput)
 def emitir_senha(pessoa: PessoaInput) -> dict:
